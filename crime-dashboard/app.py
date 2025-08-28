@@ -37,21 +37,34 @@ ROOT = project_root()
 DATA_DEFAULT = ROOT / "data" / "cleaned_data.csv"
 FIG_DIR = ROOT / "figures"
 
-@st.cache_data
-def load_data():
-    # prefer secrets in production
-    url = st.secrets.get("DATA_URL", None)
-    if url:
-        return pd.read_csv(url)
-    # fallback to local file if secrets not set
-    from pathlib import Path
-    try:
-        path = Path(__file__).parent / "data" / "cleaned_data.csv"
-    except NameError:
-        path = Path("data/cleaned_data.csv")
+# -----------------------------
+# Load data (with caching)
+# -----------------------------
+@st.cache_data(show_spinner=False)
+def load_csv(path: Path) -> pd.DataFrame:
     return pd.read_csv(path)
 
-df = load_data()
+# Try default file; if missing, let the user upload
+df = None
+if DATA_DEFAULT.exists():
+    try:
+        df = load_csv(DATA_DEFAULT)
+        st.success(f"Loaded data from: `{DATA_DEFAULT}`")
+    except Exception as e:
+        st.error(f"Could not read `{DATA_DEFAULT.name}`: {e}")
+
+if df is None:
+    st.warning("`data/cleaned_data.csv` not found. Upload a CSV to proceed.")
+    uploaded = st.file_uploader("Upload cleaned_data.csv", type=["csv"])
+    if uploaded is not None:
+        try:
+            df = pd.read_csv(uploaded)
+            st.success("Uploaded data loaded successfully.")
+        except Exception as e:
+            st.error(f"Upload failed to parse CSV: {e}")
+
+if df is None:
+    st.stop()
 # -----------------------------
 # Light cleaning / parsing
 # -----------------------------
