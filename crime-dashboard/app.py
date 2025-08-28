@@ -138,34 +138,78 @@ if "Month" in fdf.columns and pd.api.types.is_datetime64_any_dtype(fdf["Month"])
 # -------------------
 # Outcome distribution (robust)
 # -------------------
-if "Last outcome category" in df.columns:
-    # Build a clean summary with explicit column names
-    outc = (
-        df["Last outcome category"]
-        .value_counts(dropna=False)
-        .reset_index()
-        .rename(columns={"index": "Outcome", "Last outcome category": "Count"})
-    )
+# -------------------
+# Outcome distribution (robust + % + Top N + download)
+# -------------------
+import re, unicodedata
+import plotly.express as px
 
-    # Guard: sometimes value_counts gives different default names; enforce again
-    outc.columns = ["Outcome", "Count"]
+def _clean(s: str) -> str:
+    s = unicodedata.normalize("NFKC", str(s)).replace("\u00A0", " ")
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
 
-    # Optional: show the first few rows to verify columns
-    # st.write("Outcome summary preview:", outc.head())
+# Resolve the outcome column robustly (handles spacing/case)
+candidate_names = ["Last outcome category", "Last outcome", "Outcome"]
+col_map = {_clean(c): c for c in df.columns}
+outcome_col = None
+for nm in candidate_names:
+    key = _clean(nm)
+    # exact clean match
+    if key in {_clean(c) for c in df.columns}:
+        # pick the original-cased name
+        for c in df.columns:
+            if _clean(c) == key:
+                outcome_col = c
+                break
+        break
 
-    # Plot (top 15)
-    import plotly.express as px
+if outcome_col:
+    # Sidebar controls
+    st.sidebar.markdown("### Outcome chart options")
+    top_n = st.sidebar.slider("Show Top N outcomes", min_value=5, max_value=30, value=15, step=1)
+
+    # Build summary
+    outc = (df[outcome_col]
+            .astype("string")
+            .fillna("Missing/Unknown")
+            .value_counts(dropna=False)
+            .reset_index()
+            .rename(columns={"index": "Outcome", outcome_col: "Count"}))
+    outc["Percent"] = (outc["Count"] / outc["Count"].sum() * 100).round(2)
+
+    # Plot (horizontal for readability)
+    show = outc.head(top_n).iloc[::-1]  # reverse for ascending display
     fig2 = px.bar(
-        outc.head(15),
-        x="Outcome",
-        y="Count",
-        title="Outcome Distribution (Top 15)",
-        text="Count"
+        show,
+        x="Count",
+        y="Outcome",
+        orientation="h",
+        text="Count",
+        title=f"Outcome Distribution (Top {top_n})",
     )
-    fig2.update_layout(xaxis_tickangle=-30, margin=dict(l=10, r=10, t=50, b=80))
+    fig2.update_layout(
+        margin=dict(l=10, r=10, t=50, b=10),
+        yaxis=dict(tickfont=dict(size=11)),
+        xaxis_title="Count",
+        yaxis_title="Outcome",
+    )
+    # Add percentage in hover
+    fig2.update_traces(
+        hovertemplate="<b>%{y}</b><br>Count: %{x}<br>Share: %{customdata:.2f}%<extra></extra>",
+        customdata=show["Percent"].values
+    )
     st.plotly_chart(fig2, use_container_width=True)
+
+    # Show table & download
+    with st.expander("See outcome table / download"):
+        st.dataframe(outc, use_container_width=True)
+        csv = outc.to_csv(index=False).encode("utf-8")
+        st.download_button("Download outcome summary (CSV)", csv, file_name="outcome_summary.csv")
 else:
-    st.info("Column 'Last outcome category' not found in the data.")
+    st.info(f"Outcome column not found. Looked for: {candidate_names}")
+    st.write("Columns detected:", df.columns.tolist())
+
 
 
 
