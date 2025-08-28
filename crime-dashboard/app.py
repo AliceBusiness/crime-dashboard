@@ -54,82 +54,6 @@ def load_data():
 
 df = load_data()
 
-import re, unicodedata
-import streamlit as st
-import pandas as pd
-from difflib import get_close_matches
-
-# --- 1) Show raw headers exactly as read (to diagnose) ---
-st.subheader("Raw column names (exact)")
-st.code("\n".join(repr(c) for c in df.columns))
-
-# --- 2) Normalise headers: strip spaces, collapse whitespace, Unicode normalise, lower-case twin ---
-def _clean_name(s: str) -> str:
-    # normalise unicode (e.g. fancy spaces), strip, collapse inner whitespace to single space
-    s_norm = unicodedata.normalize("NFKC", str(s))
-    s_norm = s_norm.replace("\u00A0", " ")  # non-breaking space -> normal space
-    s_norm = re.sub(r"\s+", " ", s_norm).strip()
-    return s_norm
-
-original_to_clean = {col: _clean_name(col) for col in df.columns}
-df = df.rename(columns=original_to_clean)
-
-# Keep a lower-case alias too (without changing displayed names)
-clean_to_lower = {v: v.lower() for v in original_to_clean.values()}
-lower_map = {clean_to_lower[v]: v for v in clean_to_lower}  # lower -> clean
-
-# --- 3) Resolve the outcome column robustly ---
-# All acceptable variants (common typos/capitalisation)
-candidates = [
-    "Last outcome category",
-    "Last outcome",
-    "Outcome",
-    "Last Outcome Category",
-    "last outcome category",
-    "last outcome",
-    "outcome",
-]
-
-# Try exact (cleaned) match
-clean_cols = list(df.columns)
-outcome_col = None
-for want in candidates:
-    want_clean = _clean_name(want)
-    if want_clean in clean_cols:
-        outcome_col = want_clean
-        break
-
-# If not found, try case-insensitive via the lower map
-if outcome_col is None:
-    target_lower = "last outcome category"
-    if target_lower in [c.lower() for c in clean_cols]:
-        # map back to the clean-cased original
-        match_lower = target_lower
-        # find the actual cased version
-        for c in clean_cols:
-            if c.lower() == match_lower:
-                outcome_col = c
-                break
-
-# If still not found, fuzzy-match the closest header to "last outcome category"
-if outcome_col is None:
-    close = get_close_matches("last outcome category", [c.lower() for c in clean_cols], n=1, cutoff=0.6)
-    if close:
-        # convert back to actual cased column
-        for c in clean_cols:
-            if c.lower() == close[0]:
-                outcome_col = c
-                break
-
-# --- 4) Report what we resolved ---
-st.write("Resolved outcome column:", outcome_col if outcome_col else "NOT FOUND")
-
-if not outcome_col:
-    st.error("Could not find the outcome column even after normalising headers. "
-             "Check the list above and update the candidates list if needed.")
-    st.stop()
-
-
 # -----------------------------
 # Light cleaning / parsing
 # -----------------------------
@@ -216,25 +140,34 @@ if "Month" in fdf.columns and pd.api.types.is_datetime64_any_dtype(fdf["Month"])
 # -------------------
 # Outcome distribution (robust)
 # -------------------
-import plotly.express as px
+if "Last outcome category" in df.columns:
+    # Build a clean summary with explicit column names
+    outc = (
+        df["Last outcome category"]
+        .value_counts(dropna=False)
+        .reset_index()
+        .rename(columns={"index": "Outcome", "Last outcome category": "Count"})
+    )
 
-outc = (
-    df[outcome_col]
-    .value_counts(dropna=False)
-    .reset_index()
-    .rename(columns={"index": "Outcome", outcome_col: "Count"})
-)
-outc.columns = ["Outcome", "Count"]
+    # Guard: sometimes value_counts gives different default names; enforce again
+    outc.columns = ["Outcome", "Count"]
 
-fig = px.bar(
-    outc.head(15),
-    x="Outcome",
-    y="Count",
-    title="Outcome Distribution (Top 15)",
-    text="Count"
-)
-fig.update_layout(xaxis_tickangle=-30, margin=dict(l=10, r=10, t=50, b=80))
-st.plotly_chart(fig, use_container_width=True)
+    # Optional: show the first few rows to verify columns
+    # st.write("Outcome summary preview:", outc.head())
+
+    # Plot (top 15)
+    import plotly.express as px
+    fig2 = px.bar(
+        outc.head(15),
+        x="Outcome",
+        y="Count",
+        title="Outcome Distribution (Top 15)",
+        text="Count"
+    )
+    fig2.update_layout(xaxis_tickangle=-30, margin=dict(l=10, r=10, t=50, b=80))
+    st.plotly_chart(fig2, use_container_width=True)
+else:
+    st.info("Column 'Last outcome category' not found in the data.")
 
 
 
