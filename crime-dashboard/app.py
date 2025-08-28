@@ -91,9 +91,9 @@ def load_data():
 df = load_data()
 
 # ---------- From here, your app continues as usual ----------
-st.title("📊 Crime Outcomes Dashboard (Apr 2023–Apr 2025)")
-st.write("Preview:")
-st.dataframe(df.head())
+#st.title("📊 Crime Outcomes Dashboard (Apr 2023–Apr 2025)")
+#st.write("Preview:")
+#st.dataframe(df.head())
 
 # -----------------------------
 # Light cleaning / parsing
