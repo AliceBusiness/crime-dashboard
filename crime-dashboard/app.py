@@ -40,60 +40,31 @@ FIG_DIR = ROOT / "figures"
 # -----------------------------
 # Load data (with caching)
 # -----------------------------
-import streamlit as st
-import pandas as pd
-from pathlib import Path
+@st.cache_data(show_spinner=False)
+def load_csv(path: Path) -> pd.DataFrame:
+    return pd.read_csv(path)
 
-st.set_page_config(page_title="Crime Outcomes Dashboard", layout="wide")
-
-# ---------- Flexible loader: Secrets URL -> local file -> manual upload ----------
-@st.cache_data
-def _read_csv_any(path_str=None, url=None, uploaded_file=None):
-    """Read CSV from url OR local path OR uploaded file (first non-empty wins)."""
-    if url:
-        return pd.read_csv(url)
-    if path_str and Path(path_str).exists():
-        return pd.read_csv(path_str)
-    if uploaded_file is not None:
-        return pd.read_csv(uploaded_file)
-    raise FileNotFoundError("No CSV source provided.")
-
-def load_data():
-    # 1) Try URL from Secrets (set DATA_URL in Streamlit Cloud: App → Settings → Secrets)
-    url = st.secrets.get("DATA_URL", None)
-
-    # 2) Try local path inside the repo
+# Try default file; if missing, let the user upload
+df = None
+if DATA_DEFAULT.exists():
     try:
-        local_path = Path(__file__).parent / "data" / "cleaned_data.csv"
-    except NameError:
-        # Interactive fallback (Spyder/Jupyter)
-        local_path = Path("data/cleaned_data.csv")
-
-    # 3) Show an uploader if needed
-    st.sidebar.markdown("### Data Source")
-    uploaded = st.sidebar.file_uploader("Upload cleaned_data.csv (optional)", type=["csv"])
-
-    # Try to load (URL → local → uploaded)
-    try:
-        df = _read_csv_any(
-            path_str=str(local_path),
-            url=url,
-            uploaded_file=uploaded
-        )
-        source = "URL (secrets)" if url else ("Local file" if local_path.exists() else "Uploaded file")
-        st.sidebar.success(f"Loaded data from: {source}")
-        return df
+        df = load_csv(DATA_DEFAULT)
+        st.success(f"Loaded data from: `{DATA_DEFAULT}`")
     except Exception as e:
-        st.sidebar.error(f"Could not load data: {e}")
-        st.stop()
+        st.error(f"Could not read `{DATA_DEFAULT.name}`: {e}")
 
-# ---------- Load data ----------
-df = load_data()
+if df is None:
+    st.warning("`data/cleaned_data.csv` not found. Upload a CSV to proceed.")
+    uploaded = st.file_uploader("Upload cleaned_data.csv", type=["csv"])
+    if uploaded is not None:
+        try:
+            df = pd.read_csv(uploaded)
+            st.success("Uploaded data loaded successfully.")
+        except Exception as e:
+            st.error(f"Upload failed to parse CSV: {e}")
 
-# ---------- From here, your app continues as usual ----------
-#st.title("📊 Crime Outcomes Dashboard (Apr 2023–Apr 2025)")
-#st.write("Preview:")
-#st.dataframe(df.head())
+if df is None:
+    st.stop()
 
 # -----------------------------
 # Light cleaning / parsing
