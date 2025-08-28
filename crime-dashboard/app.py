@@ -53,6 +53,7 @@ def load_data():
     return pd.read_csv(p)
 
 df = load_data()
+st.write("Columns in dataset:", df.columns.tolist())
 
 
 # -----------------------------
