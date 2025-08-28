@@ -177,7 +177,7 @@ if FIG_DIR.exists():
     # Confusion matrix first if present
     cm_path = FIG_DIR / "confusion_matrix.png"
     if cm_path.exists():
-        st.image(str(cm_path), caption="Confusion Matrix", use_column_width=True)
+        st.image(str(cm_path), caption="Confusion Matrix", use_container_width=True)
 
     # Any other PNGs in figures/
     other_pngs = [p for p in sorted(FIG_DIR.glob("*.png")) if p.name != "confusion_matrix.png"]
@@ -186,7 +186,7 @@ if FIG_DIR.exists():
         cols = st.columns(2)
         for i, p in enumerate(other_pngs):
             with cols[i % 2]:
-                st.image(str(p), caption=p.name, use_column_width=True)
+                st.image(str(p), caption=p.name, use_container_width=True)
 else:
     st.info("No `figures/` directory found. Add charts (PNG) to display model outputs.")
 
