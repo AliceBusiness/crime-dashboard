@@ -51,8 +51,7 @@ def load_data():
     return pd.read_csv(p)
 
 df = load_data()
-st.subheader("Raw column names (exact)")
-st.code("\n".join(repr(c) for c in df.columns))
+
 # -----------------------------
 # Light cleaning / parsing
 # -----------------------------
