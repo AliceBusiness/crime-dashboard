@@ -40,19 +40,31 @@ FIG_DIR = ROOT / "figures"
 # -----------------------------
 # Load data (with caching)
 # -----------------------------
-import streamlit as st, pandas as pd
+@st.cache_data(show_spinner=False)
+def load_csv(path: Path) -> pd.DataFrame:
+    return pd.read_csv(path)
 
-@st.cache_data
-def load_data():
-    url = st.secrets.get("DATA_URL", "").strip()
-    if url:
-        return pd.read_csv(url)
-    # fallback to local file if you also keep a copy in the repo
-    import pathlib
-    p = pathlib.Path(__file__).parent / "data" / "cleaned_data.csv"
-    return pd.read_csv(p)
+# Try default file; if missing, let the user upload
+df = None
+if DATA_DEFAULT.exists():
+    try:
+        df = load_csv(DATA_DEFAULT)
+        st.success(f"Loaded data from: `{DATA_DEFAULT}`")
+    except Exception as e:
+        st.error(f"Could not read `{DATA_DEFAULT.name}`: {e}")
 
-df = load_data()
+if df is None:
+    st.warning("`data/cleaned_data.csv` not found. Upload a CSV to proceed.")
+    uploaded = st.file_uploader("Upload cleaned_data.csv", type=["csv"])
+    if uploaded is not None:
+        try:
+            df = pd.read_csv(uploaded)
+            st.success("Uploaded data loaded successfully.")
+        except Exception as e:
+            st.error(f"Upload failed to parse CSV: {e}")
+
+if df is None:
+    st.stop()
 
 # -----------------------------
 # Light cleaning / parsing
