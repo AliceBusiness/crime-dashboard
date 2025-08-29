@@ -253,57 +253,34 @@ if "Month" in fdf.columns and pd.api.types.is_datetime64_any_dtype(fdf["Month"])
 # -------------------
 # Outcome distribution (robust)
 # -------------------
-#import plotly.express as px
+if "Last outcome category" in df.columns:
+    # Build a clean summary with explicit column names
+    outc = (
+        df["Last outcome category"]
+        .value_counts(dropna=False)
+        .reset_index()
+        .rename(columns={"index": "Outcome", "Last outcome category": "Count"})
+    )
 
-st.subheader("Outcome Distribution")
+    # Guard: sometimes value_counts gives different default names; enforce again
+    outc.columns = ["Outcome", "Count"]
 
-# Try common header variants for outcome column
-outcome_col = _resolve_col(
-    df,
-    wanted_variants=["Last outcome category", "Last outcome", "Outcome"],
-    fuzzy_target="Last outcome category",
-)
+    # Optional: show the first few rows to verify columns
+    # st.write("Outcome summary preview:", outc.head())
 
-if outcome_col is None:
-    st.error("Could not find the outcome column (e.g., 'Last outcome category'). "
-             "See the printed column names below and adjust variants.")
-    st.code("\n".join(repr(c) for c in df.columns))
-    st.stop()
-
-top_n = st.sidebar.slider("Top N outcomes", min_value=5, max_value=30, value=15, step=1)
-
-outc = (
-    df[outcome_col]
-    .astype("string")
-    .fillna("Missing/Unknown")
-    .value_counts(dropna=False)
-    .reset_index()
-    .rename(columns={"index": "Outcome", outcome_col: "Count"})
-)
-outc["Percent"] = (outc["Count"] / outc["Count"].sum() * 100).round(2)
-
-show = outc.head(top_n).iloc[::-1]  # reverse for horizontal plot
-fig2 = px.bar(
-    show,
-    x="Count",
-    y="Outcome",
-    orientation="h",
-    text="Count",
-    title=f"Outcome Distribution (Top {top_n})",
-)
-fig2.update_traces(
-    hovertemplate="<b>%{y}</b><br>Count: %{x}<br>Share: %{customdata:.2f}%<extra></extra>",
-    customdata=show["Percent"].values
-)
-fig2.update_layout(margin=dict(l=10, r=10, t=50, b=10))
-st.plotly_chart(fig2, use_container_width=True)
-
-with st.expander("See full outcome table / download"):
-    st.dataframe(outc, use_container_width=True)
-    st.download_button("Download outcome summary (CSV)",
-                       outc.to_csv(index=False).encode("utf-8"),
-                       file_name="outcome_summary.csv")
-
+    # Plot (top 15)
+    import plotly.express as px
+    fig2 = px.bar(
+        outc.head(15),
+        x="Outcome",
+        y="Count",
+        title="Outcome Distribution (Top 15)",
+        text="Count"
+    )
+    fig2.update_layout(xaxis_tickangle=-30, margin=dict(l=10, r=10, t=50, b=80))
+    st.plotly_chart(fig2, use_container_width=True)
+else:
+    st.info("Column 'Last outcome category' not found in the data.")
 
 
 
