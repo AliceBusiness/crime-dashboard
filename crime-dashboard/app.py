@@ -253,7 +253,7 @@ if "Month" in fdf.columns and pd.api.types.is_datetime64_any_dtype(fdf["Month"])
 # -------------------
 # Outcome distribution (robust)
 # -------------------
-import plotly.express as px
+#import plotly.express as px
 
 st.subheader("Outcome Distribution")
 
